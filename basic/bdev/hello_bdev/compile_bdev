@@ -18,8 +18,9 @@ Build:
 Preparing to run hello_bdev:
 
 Environment variable "NRHUGE" determines how many huge pages are initialize. By
-default its 2000. For smaller VM's, with less memory this can be change for
-experiment purposes.
+default its 2048MB is allocated. Each page is 2048kb. This means that default 
+script would use 1024 pages of 2048kb size. However, for smaller VM's, with less
+memory this can be change for experiment purposes.
 
 
 # Change number of huge pages created to 140.
