@@ -1,0 +1,88 @@
+Compiling and running hello_bdev from scratch
+=============================================
+
+
+Download SPDK Code:
+
+# git clone https://github.com/spdk/spdk
+# cd spdk
+# git submodule update --init
+
+
+Build:
+
+# ./configure
+# make -j2
+
+
+Preparing to run hello_bdev:
+
+Environment variable "NRHUGE" determines how many huge pages are initialize. By
+default its 2000. For smaller VM's, with less memory this can be change for
+experiment purposes.
+
+
+# Change number of huge pages created to 140.
+
+export NRHUGE=140
+# Setup the environment
+bash ./scripts/setup.sh
+# Verify the environment
+bash ./scripts/setup.sh status
+Hugepages
+node     hugesize     free /  total
+node0      2048kB      140 /    140
+
+
+Make changes to examples/bdev/hello_world/bdev.conf to start with lesser
+number of LUN's. Reduce the size of the LUN's to consume less Hugepages:
+
+[Passthru]
+  PT Malloc1 PT0
+[Malloc]
+  NumberOfLuns 1	/* Just start with single LUN */
+  LunSizeInMB  8	/* Lun size */
+
+
+Running hello_bdev example:
+
+# cd examples/bdev/hello_world
+# ./hello_bdev -c bdev.conf
+Starting SPDK v18.07-pre / DPDK 18.05.0 initialization...
+[ DPDK EAL parameters: hello_bdev -c 0x1 --legacy-mem --file-prefix=spdk_pid440 ]
+EAL: Detected 1 lcore(s)
+EAL: Detected 1 NUMA nodes
+EAL: Multi-process socket /var/run/dpdk/spdk_pid440/mp_socket
+EAL: Probing VFIO support...
+app.c: 530:spdk_app_start: *NOTICE*: Total cores available: 1
+reactor.c: 718:spdk_reactors_init: *NOTICE*: Occupied cpu socket mask is 0x1
+reactor.c: 492:_spdk_reactor_run: *NOTICE*: Reactor started on core 0 on socket 0
+vbdev_passthru.c: 374:vbdev_passthru_init: *NOTICE*: conf parse matched: Malloc1
+hello_bdev.c: 155:hello_start: *NOTICE*: Successfully started the application
+hello_bdev.c: 173:hello_start: *NOTICE*: Opening the bdev Malloc0
+hello_bdev.c: 181:hello_start: *NOTICE*: Opening io channel
+hello_bdev.c: 206:hello_start: *NOTICE*: Writing to the bdev
+hello_bdev.c: 117:write_complete: *NOTICE*: bdev io write completed successfully
+hello_bdev.c: 130:write_complete: *NOTICE*: Reading io
+hello_bdev.c:  90:read_complete: *NOTICE*: Read string from bdev : Hello World!
+hello_bdev.c:  99:read_complete: *NOTICE*: Stopping app
+#
+
+
+Recheck huge pages after running:
+
+#  bash ./scripts/setup.sh status
+Hugepages
+node     hugesize     free /  total
+node0      2048kB        0 /    140 [Notice All free is exhausted]
+
+
+Resetting and checking Hugepages again:
+
+# bash ./scripts/setup.sh reset
+# bash ./scripts/setup.sh status
+Hugepages
+node     hugesize     free /  total
+node0      2048kB      140 /    140 [Memory reclaimed]
+
+
