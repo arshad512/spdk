@@ -1,0 +1,95 @@
+=============================
+SPDK File back bdev: Workflow
+=============================
+
+Bdev's are block device. If the backing store for these block device
+is a regular file SPDK adds a block layer on top of it. All reads/writes
+now goes through this layer. Of course this in turn uses AIO layer.
+
+This exercise demonstrates how a flat file once prepped with SPDK layer
+can act a device passed to QEMU.
+
+Important to note that the flat file can itself be passed to qemu without
+preparing it with SPDK layer. Preparing it with SPDK Layer forces IO to
+pass though vhost-SPDL layer instead of standard AIO layer.
+
+Things to have:
+01	VM or any machine with at least two core.
+02	SPDK driver compiled.
+
+Thins to do:
+01	Create flat file
+02	Start vhost server
+03	Create AIO disk on top of flat file
+04	Start qemu with the above disk attached as sdb.
+
+- Have a VM with at least two CPU. vhost consumes a whole CPU for itself.
+# cat /proc/cpuinfo | grep processor
+processor       : 0
+processor       : 1
+
+- Create a file of size 7 mb. This will be our disk that will be exposed to QEMU
+dd if=/dev/zero of=/tmp/file bs=512 count=14000
+
+- Start vhost target: With 256MB, and First CPU assigned vhost
+# ./app/vhost/vhost -S /var/tmp -s 256 -m 0x1
+
+- Start / create aio. Disk name mydisk; of size 512 bytes sector for file /tmp/file
+# scripts/rpc.py construct_aio_bdev /tmp/file mydisk 512
+
+- Get all bdevs
+# scripts/rpc.py get_bdevs
+[
+  {
+    "name": "mydisk",
+    "aliases": [],
+    "product_name": "AIO disk",
+    "block_size": 512,
+    "num_blocks": 14000,
+    "assigned_rate_limits": {
+      "rw_ios_per_sec": 0,
+      "rw_mbytes_per_sec": 0
+    },
+    "claimed": false,
+    "supported_io_types": {
+      "read": true,
+      "write": true,
+      "unmap": false,
+      "write_zeroes": true,
+      "flush": true,
+      "reset": true,
+      "nvme_admin": false,
+      "nvme_io": false
+    },
+    "driver_specific": {
+      "aio": {
+        "filename": "/tmp/file"
+      }
+    }
+  }
+]
+
+
+- Get pre bootable Debian from below link:
+# https://github.com/palmercluff/qemu-images/tree/master/debian-7.11.0
+
+- Image downloaded as debian-7.11.0-amd64.qcow2
+
+- Start qemu with 1st Disk as bootable downloaded from above.
+  Second disk is created by SPDK bdev api and is passed as 2nd disk.
+# qemu-system-x86_64 -hda debian-7.11.0-amd64.qcow2 -hdb /tmp/file
+
+- Result is Block device created via SPDK is exposed to Qemu VM.
+
+				=======================================================
+					            QEMU GUEST VM
+				=======================================================
+					|				|
+					V				V
+				[/dev/sdb - Passed to qemu] [/dev/sda - Passed to qemu: Downloaded image]
+					|
+					V
+ VHOST SERVER --------------->	[SPDK file bdev (block device/SPDK layer)]
+					|
+					V
+				[Flat file: /tmp/five]
